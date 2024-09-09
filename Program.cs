@@ -12,7 +12,7 @@ internal class Program
         deserializedObjectForClient.Login = "New login";
         deserializedObjectForClient.Password = "New password";
         deserializedObjectForClient.TestArray[2] = 4;
-        deserializedObjectForClient.SuperCar.Name = "New name";
+        deserializedObjectForClient.SuperCar = null;
         deserializedObjectForClient.Cars.Remove(deserializedObjectForClient.Cars.Find(w => w.Id == 2)!);
         var car = deserializedObjectForClient.Cars.Find(w => w.Id == 3)!;
         car.Name = "New car name";

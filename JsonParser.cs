@@ -76,6 +76,12 @@ public static class JsonParser
             !clientObject.TryGetValue(property.Name, out var clientProperty))
             return;
 
+        if (clientProperty.Type is JTokenType.Null)
+        {
+            serverProperty.Replace(clientProperty);
+            return;
+        }
+        
         switch (property.Value.Type)
         {
             case JTokenType.Object:
