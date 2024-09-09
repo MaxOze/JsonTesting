@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -20,7 +18,7 @@ public static class JsonParser
     {
         var jObject = JObject.Parse(jsonString);
         CheckDeserializedObject(jObject);
-        var deserializedObject = JsonConvert.DeserializeObject<T>(jsonString, SerializerSettings);
+        var deserializedObject = JsonConvert.DeserializeObject<T>(jObject.ToString(), SerializerSettings);
         deserializedObject.ServerObject = jObject;
         return deserializedObject;
     }
@@ -31,7 +29,7 @@ public static class JsonParser
         {
             if (!obj.TryGetValue(property.Name, out var propertyValue))
                 return;
-            
+
             switch (property.Value.Type)
             {
                 case JTokenType.Object:
@@ -52,7 +50,7 @@ public static class JsonParser
         {
             if (item.Type is JTokenType.Array)
                 CheckArray((JArray)item);
-            
+
             if (item.Type is not JTokenType.Object)
                 return;
 
@@ -67,13 +65,12 @@ public static class JsonParser
         var clientObject = JObject.FromObject(content);
 
         foreach (var property in content.ServerObject.Properties())
-            CheckObjectProperty(typeof(T), content.ServerObject, clientObject, property);
+            CheckObjectProperty(content.ServerObject, clientObject, property);
 
         return content.ServerObject.ToString();
     }
 
-    private static void CheckObjectProperty(Type objectType, JObject serverObject, JObject clientObject,
-        JProperty property)
+    private static void CheckObjectProperty(JObject serverObject, JObject clientObject, JProperty property)
     {
         if (!serverObject.TryGetValue(property.Name, out var serverProperty) ||
             !clientObject.TryGetValue(property.Name, out var clientProperty))
@@ -82,10 +79,10 @@ public static class JsonParser
         switch (property.Value.Type)
         {
             case JTokenType.Object:
-                CheckInnerObjectProperty(objectType, (JObject)serverProperty, (JObject)clientProperty, property);
+                CheckInnerObjectProperty((JObject)serverProperty, (JObject)clientProperty);
                 break;
             case JTokenType.Array:
-                CheckArrayProperty(objectType, (JArray)serverProperty, (JArray)clientProperty, property);
+                CheckArrayProperty((JArray)serverProperty, (JArray)clientProperty);
                 break;
             default:
                 serverProperty.Replace(clientProperty);
@@ -93,32 +90,44 @@ public static class JsonParser
         }
     }
 
-    private static void CheckInnerObjectProperty(Type parentType, JObject serverInnerObject, JObject clientInnerObject,
-        JProperty property)
+    private static void CheckInnerObjectProperty(JObject serverInnerObject, JObject clientInnerObject)
     {
-        var innerObjectType = parentType.GetProperty(property.Name)?.PropertyType;
-
         foreach (var innerProperty in serverInnerObject.Properties())
-            CheckObjectProperty(innerObjectType, serverInnerObject, clientInnerObject, innerProperty);
+            CheckObjectProperty(serverInnerObject, clientInnerObject, innerProperty);
     }
-
-    /*
-        ЕСЛИ ЭТО ПРОСТОЙ ТИП ТО СВЕРИТЬ НА СОВПАДЕНИЯ НАВЕРНО?
-        ЕСЛИ СЛОЖНЫЙ ТО УЖЕ ПРОВЕРЯТЬ ПО ПРОПЕРТИ
-    */
-    private static void CheckArrayProperty(Type parentType, JArray serverArray, JArray clientArray, JProperty property)
+    
+    private static void CheckArrayProperty(JArray serverArray, JArray clientArray)
     {
-        var array = parentType.GetProperty(property.Name)?.PropertyType;
-        var arrayType = array!.GetElementType() ?? array.GetGenericArguments().SingleOrDefault();
+        var listToRemove = new List<JToken>();
+        var isPrimitiveArray = serverArray[0].Type is not JTokenType.Object; 
 
-        var serverDictionary = new Dictionary<object, object>();
-        var clientDictionary = new Dictionary<object, object>();
-
-        // Console.WriteLine(serverArray.);
-        
         foreach (var serverArrayItem in serverArray)
         {
-            // arrayType.GetProperty
+            if (isPrimitiveArray)
+            {
+                serverArray.Replace(clientArray);
+                return;
+            }
+
+            var serverObject = (JObject)serverArrayItem;
+            var serverObjectIndex = serverObject.GetValue("JsonArrayIndex")?.Value<int>();
+
+            var clientObject = clientArray.SingleOrDefault(item =>
+                ((JObject)item).GetValue("JsonArrayIndex")?.Value<int>() == serverObjectIndex);
+
+            if (clientObject is null)
+                listToRemove.Add(serverArrayItem);
+            else
+                CheckInnerObjectProperty(serverObject, (JObject)clientObject);
         }
+
+        listToRemove.ForEach(item => serverArray.Remove(item));
+
+        if (isPrimitiveArray)
+            return;
+        
+        foreach (var clientArrayItem in clientArray.Where(item =>
+                     ((JObject)item).GetValue("JsonArrayIndex")?.Value<int>() == 0))
+            serverArray.Add(clientArrayItem);
     }
 }

@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace JsonTesting;
-
-[AttributeUsage(AttributeTargets.Property)]
-public class PrimaryKey : Attribute;
-
 
 public abstract class DynamicObject
 {
@@ -16,6 +11,7 @@ public abstract class DynamicObject
 
 public abstract class DynamicArrayItem
 {
+    // ReSharper disable once UnusedMember.Global
     public int JsonArrayIndex { get; set; }
 }
 
@@ -30,7 +26,6 @@ public class UserModel : DynamicObject
 
 public class CarModel : DynamicArrayItem
 {
-    [PrimaryKey]
     public int Id { get; set; }
     public string Name { get; set; }
 }
